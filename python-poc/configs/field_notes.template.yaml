@@ -1,0 +1,86 @@
+# Field notes for one capture. Pass with --notes; stored verbatim in the log header.
+# Lengths in millimetres, angles in degrees. Record measured tolerances, not guesses:
+# per-zone angle of incidence is computed from pose plus surface shape, so pose error
+# propagates straight into the material-vs-angle result.
+
+label: silo3-tilted20-halffull
+operator:
+date: 2026-08-11
+what_is_in_view: >
+  One sentence a stranger could use to picture the scene.
+
+capture_kind: silo # silo | panel_sweep | reference | deliberately_bad
+
+silo:
+  internal_diameter_mm:
+  total_height_mm:
+  wall_material: stainless
+  wall_finish: mill # mill | brushed | polished
+  hopper_cone_height_mm:
+  outlet_diameter_mm:
+  roof_opening_diameter_mm:
+
+sensor_mount:
+  how_held: tripod # tripod | clamp | hand-held | bracket
+  height_above_floor_mm:
+  offset_from_axis_mm:
+  tilt_from_vertical_deg:
+  tilt_direction: # which way it leans, e.g. "towards the north wall"
+  roll_deg:
+  measured_with: # plumb line, phone inclinometer, tape to wall at two points
+  tolerance_mm:
+  tolerance_deg:
+  window_or_cover: none # none | glass | polycarbonate | ...
+  window_cleanliness: clean # clean | dusty | filmed
+
+fill_state:
+  # A single level figure is not enough on a cone or a draw-down funnel: local slope
+  # varies across the surface and reverses in a funnel. Depths at known radii are what
+  # make per-zone angle of incidence recoverable.
+  surface_shape: flat # flat | cone_from_filling | funnel_from_drawing | irregular
+  depth_from_hatch_mm:
+    centre:
+    mid_radius:
+    near_wall:
+  measured_at_radius_mm:
+    centre: 0
+    mid_radius:
+    near_wall:
+  apex_or_crater_position: # offset from the axis, if visible
+  measured_with: # tape, laser, plumb bob
+  tolerance_mm:
+
+material:
+  feed_type: ground corn
+  particle_size_mm:
+  colour:
+  moisture: dry # dry | damp | wet
+  freshly_moved: false # was it disturbed just before the capture
+
+environment:
+  ambient_light: # dark | overcast | bright | direct sun through hatch
+  sun_reaches_surface: false
+  airborne_dust: none # none | light | heavy
+  air_temperature_c:
+  filling_or_emptying_during_capture: false
+
+optical_path:
+  distance_to_nearest_wall_mm:
+  obstructions: # auger, ladder, ropes, cone edge
+
+# Only for capture_kind: panel_sweep — a stainless offcut or a feed tray at measured
+# angle and standoff, which is what separates material response from silo geometry.
+panel:
+  material: # stainless | feed | other
+  finish:
+  size_mm:
+  standoff_mm:
+  angle_from_normal_deg:
+  measured_with:
+
+photos: # filenames, relative to this file
+  -
+
+log: # timestamped notes on anything that changed mid-capture
+  - time:
+    note:

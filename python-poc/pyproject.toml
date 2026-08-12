@@ -1,0 +1,14 @@
+[project]
+name = "tmf8829-poc"
+version = "0.1.0"
+description = "TMF8829 EVM shield capture PoC (ZeroMQ client)"
+requires-python = ">=3.10"
+dependencies = [
+    "pyzmq>=26",
+]
+
+# The vendored ams OSRAM driver is used as-is from driver/tmf8829 via sys.path;
+# it is not packaged/installed. Its corefw_c/aos_com wheels are win_amd64-only
+# and are deliberately not installed here - the ZeroMQ client path does not need them.
+[tool.uv]
+package = false
