@@ -1,0 +1,40 @@
+name: offset_tilted
+
+camera:
+  width: 8
+  height: 8
+  hfov_deg: 67.38
+  vfov_deg: 53.13
+
+sensor:
+  # Mounted off the silo axis on the roof cone and tilted back towards the centre,
+  # which is what a real roof-hatch installation looks like.
+  placement: euler
+  position_mm: [700.0, 0.0, 4900.0]
+  yaw_deg: 180.0
+  pitch_deg: 12.0
+  roll_deg: 0.0
+  max_range_mm: 10000.0
+  quantization_mm: 0.25
+
+silo:
+  type: profiled
+  outlet_radius_mm: 250.0
+  body_radius_mm: 1500.0
+  roof_radius_mm: 350.0
+  z_outlet_mm: 0.0
+  z_hopper_top_mm: 1400.0
+  z_cylinder_top_mm: 4400.0
+  z_roof_top_mm: 5200.0
+
+feed:
+  type: conical_pile
+  base_level_mm: 2400.0
+  peak_height_mm: 700.0
+  pile_radius_mm: 1200.0
+
+reconstruct:
+  method: linear_interp
+  classifier: geometric
+  wall_margin_mm: 25.0
+  camera_model: matched

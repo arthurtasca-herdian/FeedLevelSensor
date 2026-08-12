@@ -1,0 +1,29 @@
+name: flat_half_full
+
+camera:
+  width: 8
+  height: 8
+  hfov_deg: 67.38
+  vfov_deg: 53.13
+
+sensor:
+  placement: look_at
+  position_mm: [0.0, 0.0, 4000.0]
+  target_mm: [0.0, 0.0, 0.0]
+  max_range_mm: 10000.0
+  quantization_mm: 0.25
+
+silo:
+  type: cylinder
+  radius_mm: 2000.0
+  height_mm: 8000.0
+
+feed:
+  type: flat
+  level_mm: 2000.0
+
+reconstruct:
+  method: linear_interp
+  classifier: geometric
+  wall_margin_mm: 25.0
+  camera_model: matched

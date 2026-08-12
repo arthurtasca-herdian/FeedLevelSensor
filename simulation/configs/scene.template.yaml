@@ -1,0 +1,105 @@
+# Template scene. Every key is optional; the value shown is the default.
+# Lengths are millimetres, angles degrees. World frame: +Z up, origin at the silo floor centre.
+
+name: scene
+
+camera:
+  # Zone grid. The TMF8829 supports 8x8, 16x16, 32x32 and 48x32.
+  width: 8
+  height: 8
+  # PLACEHOLDER: these are the field of view implied by the ams driver's zCorrection
+  # (2*atan(2/3) x 2*atan(1/2)), not a datasheet figure. Replace with the measured optics.
+  hfov_deg: 67.38
+  vfov_deg: 53.13
+
+sensor:
+  # euler | look_at
+  #
+  # euler gives mounting angles against a nadir-pointing reference: at yaw = pitch = roll = 0
+  # the optical axis points straight down and the zone grid's +X runs along world +X. The axis
+  # ends up along (sin(pitch)cos(yaw), sin(pitch)sin(yaw), -cos(pitch)), so pitch is the tilt
+  # away from vertical and yaw is the compass direction it leans, CCW from +X.
+  #
+  # look_at instead aims the axis at target_mm. Both accept roll_deg.
+  #
+  # Near vertical, yaw and roll turn about nearly the same axis, so different (yaw, roll) pairs
+  # can describe the same orientation; only their difference is observable at pitch = 0.
+  placement: euler
+
+  position_mm: [0.0, 0.0, 4000.0]
+
+  # placement: euler
+  yaw_deg: 0.0
+  pitch_deg: 0.0
+
+  # placement: look_at
+  target_mm: [0.0, 0.0, 0.0]
+
+  # Rotation about the optical axis; applies to both forms. The field of view is not square,
+  # so this changes which part of the silo the zone grid covers.
+  roll_deg: 0.0
+
+  min_range_mm: 0.0
+  max_range_mm: 10000.0
+  # Device reporting step; 0 disables quantisation.
+  quantization_mm: 0.25
+
+silo:
+  # profiled | cylinder
+  #
+  # profiled is the usual silo body, bottom to top: an inverted cone trunk (hopper) opening
+  # out from the outlet, a cylindrical shell, then a cone trunk narrowing to the roof opening.
+  # The lid is not modelled. Sections may have zero height; a cylinder is the degenerate case.
+  #
+  #        roof_radius          z_roof_top
+  #          \_____/
+  #          |     |            z_cylinder_top
+  #          |     |   body_radius
+  #          |_____|            z_hopper_top
+  #           \   /
+  #            \_/              z_outlet
+  #        outlet_radius
+  type: profiled
+
+  outlet_radius_mm: 250.0
+  body_radius_mm: 1500.0
+  roof_radius_mm: 350.0
+  z_outlet_mm: 0.0
+  z_hopper_top_mm: 1400.0
+  z_cylinder_top_mm: 4400.0
+  z_roof_top_mm: 5200.0
+
+  # type: cylinder
+  radius_mm: 1500.0
+  height_mm: 4000.0
+  floor_z_mm: 0.0
+
+feed:
+  # flat | conical_pile | expression
+  type: flat
+
+  # type: flat
+  level_mm: 2000.0
+
+  # type: conical_pile
+  base_level_mm: 1200.0
+  peak_height_mm: 800.0
+  pile_radius_mm: 1100.0
+  # Offsets the pile from the silo axis; null centres it.
+  pile_centre_mm: null
+
+  # type: expression - evaluated with x, y arrays and numpy helpers (np, sqrt, sin, hypot, ...).
+  expression: null
+
+reconstruct:
+  # mean_level | plane_fit | linear_interp | rbf
+  method: linear_interp
+  # geometric uses only what firmware could know; oracle uses ground-truth surface labels.
+  classifier: geometric
+  wall_margin_mm: 25.0
+  # matched uses the camera block above; vendor_zcorrection uses the ams driver's implied model.
+  camera_model: matched
+
+metrics:
+  # Samples per axis for volume and residual integration.
+  grid: 512
