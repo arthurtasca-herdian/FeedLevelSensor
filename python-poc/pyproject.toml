@@ -5,6 +5,12 @@ description = "TMF8829 EVM shield capture PoC (ZeroMQ client)"
 requires-python = ">=3.10"
 dependencies = [
     "pyzmq>=26",
+    "numpy>=2.1",
+    "matplotlib>=3.9",
+    "pyvista[jupyter]>=0.44",
+    "ipywidgets>=8.1",
+    "ipykernel>=6.29",
+    "jupyterlab>=4.2",
 ]
 
 # The vendored ams OSRAM driver is used as-is from driver/tmf8829 via sys.path;
@@ -12,3 +18,7 @@ dependencies = [
 # and are deliberately not installed here - the ZeroMQ client path does not need them.
 [tool.uv]
 package = false
+# Never build the venv on a conda interpreter: miniconda's libstdc++ (GLIBCXX_3.4.29) is older
+# than the one Mesa needs, so VTK gets no GL context and the Jupyter kernel dies on the first
+# PyVista plotter.
+python-preference = "only-managed"

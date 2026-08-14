@@ -58,14 +58,14 @@ def print_header(record: dict) -> None:
         print("notes      none recorded")
 
 
-def reparse(record: dict, decode_histograms: bool) -> dict:
+def reparse(record: dict, decode_histograms: bool, to_mm: bool) -> dict:
     payload = base64.b64decode(record["raw"])
     if len(payload) != record.get("raw_len", len(payload)):
         sys.stderr.write("set {}: raw_len mismatch\n".format(record.get("seq")))
-    return capture_log.decode_set(payload, decode_histograms)
+    return capture_log.decode_set(payload, decode_histograms, to_mm)
 
 
-def set_stats(decoded: dict, peak_index: int, to_mm: bool) -> str:
+def set_stats(decoded: dict, peak_index: int, unit: str) -> str:
     pixels = decoded.get("pixels")
     if not pixels:
         return "no result frames"
@@ -78,11 +78,9 @@ def set_stats(decoded: dict, peak_index: int, to_mm: bool) -> str:
     total = sum(len(row) for row in pixels)
     if not distances:
         return "targets=0/{}".format(total)
-    scale = 4.0 if to_mm else 1.0
-    unit = "mm" if to_mm else "bins"
     return "targets={}/{} min={:.0f}{u} max={:.0f}{u} mean={:.0f}{u}".format(
-        len(distances), total, min(distances) / scale, max(distances) / scale,
-        sum(distances) / len(distances) / scale, u=unit,
+        len(distances), total, min(distances), max(distances),
+        sum(distances) / len(distances), u=unit,
     )
 
 
@@ -123,12 +121,13 @@ def main() -> int:
     except ValueError:
         return "--zone must be two integers, as \"y,x\""
 
-    to_mm = False
+    to_mm, unit = False, "bins"
     sets = 0
     for record in capture_log.read_log(args.log):
         if record.get("type") == "header":
             print_header(record)
             to_mm = record.get("config", {}).get("select", 0) >= 1
+            unit = "mm" if to_mm else "bins"
             print()
             continue
         if record.get("type") != "set":
@@ -140,7 +139,7 @@ def main() -> int:
             continue
 
         try:
-            decoded = reparse(record, decode_histograms=args.histograms)
+            decoded = reparse(record, decode_histograms=args.histograms, to_mm=to_mm)
         except Exception as exc:
             print("set {}: raw payload does not parse ({}: {})".format(
                 seq, type(exc).__name__, exc))
@@ -154,14 +153,12 @@ def main() -> int:
         print("set {} {} frame={} temp={}C refPos={} bdv={} {}{}".format(
             seq, record.get("host_utc", ""), header.get("fNumber"),
             (header.get("temperature") or [None, None, None])[2], header.get("refPos"),
-            header.get("bdv"), set_stats(decoded, args.peak, to_mm),
+            header.get("bdv"), set_stats(decoded, args.peak, unit),
             "  warnings=" + warnings if warnings else "",
         ))
 
         if not args.summary and decoded.get("pixels"):
-            unit = "mm" if to_mm else "bins"
-            capture_log.print_grid(
-                capture_log.scale_grid(decoded["pixels"], to_mm), args.peak, unit)
+            capture_log.print_grid(decoded["pixels"], args.peak, unit)
 
         if args.histograms:
             print_zone_histogram(decoded, zone)

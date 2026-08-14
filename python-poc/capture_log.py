@@ -173,7 +173,7 @@ def ref_spad_to_dict(frame: bytearray) -> dict:
     return {"sum": [list(cycle) for cycle in parsed.sum]}
 
 
-def decode_set(payload: bytes, decode_histograms: bool = False) -> dict:
+def decode_set(payload: bytes, decode_histograms: bool = False, to_mm: bool = False) -> dict:
     container_size = ctypes.sizeof(tmf8829ContainerFrameHeader)
     container = tmf8829ContainerFrameHeader.from_buffer_copy(payload[:container_size])
     body = payload[container_size:]
@@ -202,9 +202,10 @@ def decode_set(payload: bytes, decode_histograms: bool = False) -> dict:
 
     if result_frames:
         # deleteNone=False keeps all four peak slots so a peak index means the same thing in every
-        # record; toMM=False keeps device units, which `select` in the header record defines.
+        # record. to_mm dependes on device configuration, asserting that device readins are in distance units
+        # rather than bin indices.
         decoded["pixels"] = Tmf8829AppCommon.getFullPixelResult(
-            frames=result_frames, toMM=False, deleteNone=False, pointCloud=False, distanceToXYZ=False
+            frames=result_frames, toMM=to_mm, deleteNone=False, pointCloud=False, distanceToXYZ=False
         )
 
     if ref_frames:
@@ -263,6 +264,8 @@ class CaptureWriter:
         }
         # The raw bytes are the record of truth, so a frame the parsers choke on must still reach
         # the file: it can be diagnosed offline, and one bad set must not end a field capture.
+        # The stored copy stays in device units so that `select` in the header describes the whole
+        # file; converting here would leave the log's own units disagreeing with its header.
         try:
             decoded = decode_set(payload, self.decode_histograms)
         except Exception as exc:

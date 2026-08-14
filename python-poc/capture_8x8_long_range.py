@@ -294,7 +294,6 @@ def main() -> int:
     started = time.monotonic()
     try:
         while args.count == 0 or captured < args.count:
-            # The device paces itself at `period`, so this blocks until the next set.
             payload = client.get_result_data(timeout=args.interval + 10.0)
             captured += 1
             if writer:
