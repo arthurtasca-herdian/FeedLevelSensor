@@ -17,6 +17,7 @@ from .palette import (
     INK_SECONDARY,
     RESIDUAL_CMAP,
     ROLE_STYLE,
+    SERIES_RECON,
     SERIES_TRUE,
     SURFACE,
 )
@@ -71,14 +72,25 @@ def _frustum_edges(intrinsics: Intrinsics, pose: np.ndarray, length: float) -> p
     return pv.PolyData(points, lines=np.hstack(lines))
 
 
-def _ray_segments(frame: Frame) -> pv.PolyData:
-    hits = frame.hit_points[frame.valid]
-    origins = np.broadcast_to(frame.origin, hits.shape)
+def _ray_segments(origin: np.ndarray, hits: np.ndarray) -> pv.PolyData:
+    origins = np.broadcast_to(origin, hits.shape)
     points = np.empty((2 * len(hits), 3))
     points[0::2] = origins
     points[1::2] = hits
     lines = np.hstack([[2, 2 * i, 2 * i + 1] for i in range(len(hits))])
     return pv.PolyData(points, lines=lines)
+
+
+def _add_sensor(plotter: pv.Plotter, frame: Frame, points: np.ndarray, reach: float,
+                show_rays: bool, show_frustum: bool) -> None:
+    if show_rays and len(points):
+        plotter.add_mesh(_ray_segments(frame.origin, points), color=INK_MUTED, line_width=1,
+                         opacity=0.5)
+    if show_frustum:
+        plotter.add_mesh(_frustum_edges(frame.intrinsics, frame.pose, reach),
+                         color=INK_PRIMARY, line_width=2, opacity=0.55)
+    plotter.add_mesh(pv.Sphere(radius=max(reach * 0.012, 1.0), center=frame.origin),
+                     color=INK_PRIMARY)
 
 
 def scene_view(scene: Scene, frame: Frame, headless: bool = True, show_rays: bool = True,
@@ -90,9 +102,6 @@ def scene_view(scene: Scene, frame: Frame, headless: bool = True, show_rays: boo
     hits = frame.hit_points[frame.valid]
     distances = frame.distance_mm[frame.valid]
 
-    if show_rays and len(hits):
-        plotter.add_mesh(_ray_segments(frame), color=INK_MUTED, line_width=1, opacity=0.5)
-
     if len(hits):
         cloud = pv.PolyData(hits)
         cloud["distance (mm)"] = distances
@@ -102,12 +111,7 @@ def scene_view(scene: Scene, frame: Frame, headless: bool = True, show_rays: boo
         )
 
     reach = float(np.nanmax(frame.distance_mm)) if frame.valid.any() else 1000.0
-    if show_frustum:
-        plotter.add_mesh(_frustum_edges(frame.intrinsics, frame.pose, reach),
-                         color=INK_PRIMARY, line_width=2, opacity=0.55)
-
-    plotter.add_mesh(pv.Sphere(radius=max(reach * 0.012, 1.0), center=frame.origin),
-                     color=INK_PRIMARY)
+    _add_sensor(plotter, frame, hits, reach, show_rays, show_frustum)
     plotter.add_axes(color=INK_SECONDARY)
     plotter.camera_position = "xz"
     plotter.camera.azimuth = 35
@@ -143,6 +147,53 @@ def residual_view(scene: Scene, recon_surface, residual_mm: np.ndarray, frame: F
     # imply a flat colour it never has.
     plotter.add_legend(
         [["true feed surface", SERIES_TRUE], ["sensor samples", INK_PRIMARY]],
+        bcolor=SURFACE, border=True, face="rectangle", size=(0.24, 0.08), loc="upper left",
+    )
+    plotter.add_axes(color=INK_SECONDARY)
+    plotter.camera_position = "xz"
+    plotter.camera.azimuth = 35
+    plotter.camera.elevation = 18
+    plotter.reset_camera()
+    return plotter
+
+
+def reading_view(scene: Scene, frame: Frame, points: np.ndarray, feed_surface,
+                 feed_mask: np.ndarray | None = None, headless: bool = True,
+                 show_rays: bool = True, show_frustum: bool = True) -> pv.Plotter:
+    """A measured grid placed in the silo: the points it returned and the surface fitted to them.
+
+    ``points`` are the unprojected world positions rather than anything read off the frame, because
+    a measured frame has no ground-truth hit points to fall back on.
+    """
+    plotter = _new_plotter(headless, "Capture reading")
+    _add_scene_geometry(plotter, scene)
+
+    vertices, faces = feed_surface
+    plotter.add_mesh(to_polydata(vertices, faces), color=SERIES_RECON, opacity=0.55,
+                     label="fitted feed surface")
+
+    valid = frame.valid if feed_mask is None else feed_mask
+    kept = np.asarray(points)[valid]
+    if len(kept):
+        cloud = pv.PolyData(kept)
+        cloud["distance (mm)"] = frame.distance_mm[valid]
+        plotter.add_mesh(
+            cloud, scalars="distance (mm)", cmap=DISTANCE_CMAP, render_points_as_spheres=True,
+            point_size=14, scalar_bar_args={"title": "range (mm)", **_SCALAR_BAR},
+        )
+
+    # Zones excluded from the fit are still drawn, so a capture rejected for hitting the wall
+    # looks different from one that returned nothing at all.
+    rejected = np.asarray(points)[frame.valid & ~valid]
+    if len(rejected):
+        plotter.add_mesh(pv.PolyData(rejected), color=INK_MUTED, render_points_as_spheres=True,
+                         point_size=9, opacity=0.7, label="excluded from fit")
+
+    reach = float(np.nanmax(frame.distance_mm)) if frame.valid.any() else 1000.0
+    _add_sensor(plotter, frame, np.asarray(points)[frame.valid], reach, show_rays, show_frustum)
+
+    plotter.add_legend(
+        [["fitted feed surface", SERIES_RECON], ["excluded from fit", INK_MUTED]],
         bcolor=SURFACE, border=True, face="rectangle", size=(0.24, 0.08), loc="upper left",
     )
     plotter.add_axes(color=INK_SECONDARY)

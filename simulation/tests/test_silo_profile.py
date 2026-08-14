@@ -4,7 +4,7 @@ import pytest
 from tof_sim.camera import Intrinsics, look_at
 from tof_sim.geometry import FlatFeed, Scene, SiloProfile
 from tof_sim.metrics import evaluate
-from tof_sim.reconstruct import classify_geometric, classify_oracle, reconstruct
+from tof_sim.reconstruct import check_is_contained_in_silo, classify_oracle, reconstruct
 from tof_sim.sensor import IdealTofSensor
 
 HOPPER = SiloProfile(
@@ -93,7 +93,7 @@ def test_a_single_radius_threshold_would_accept_the_hopper_wall():
     points = reconstruct(frame, feed_mask=frame.valid).points_world
 
     oracle = classify_oracle(frame, scene)
-    profiled = classify_geometric(points, frame.valid, profile=HOPPER, wall_margin=25.0)
+    profiled = check_is_contained_in_silo(points, frame.valid, profile=HOPPER, wall_margin=25.0)
     flat_threshold = frame.valid & (
         np.hypot(points[..., 0], points[..., 1]) <= HOPPER.body_radius - 25.0
     )

@@ -15,22 +15,27 @@ camera:
 sensor:
   # euler | look_at
   #
-  # euler gives mounting angles against a nadir-pointing reference: at yaw = pitch = roll = 0
-  # the optical axis points straight down and the zone grid's +X runs along world +X. The axis
-  # ends up along (sin(pitch)cos(yaw), sin(pitch)sin(yaw), -cos(pitch)), so pitch is the tilt
-  # away from vertical and yaw is the compass direction it leans, CCW from +X.
+  # euler gives mounting angles against a world-aligned reference: at yaw = pitch = roll = 0 the
+  # camera axes coincide with the world axes, which points the optical axis (camera +Z) straight
+  # UP at the roof. The axis ends up along (sin(pitch)cos(yaw), sin(pitch)sin(yaw), cos(pitch)),
+  # so pitch is the polar angle from world +Z and yaw the azimuth it leans towards, CCW from +X.
+  #
+  # A roof-mounted sensor therefore sits near pitch = 180, not near 0. An inclinometer reading
+  # of tilt-from-vertical t becomes pitch = 180 - t.
   #
   # look_at instead aims the axis at target_mm. Both accept roll_deg.
   #
   # Near vertical, yaw and roll turn about nearly the same axis, so different (yaw, roll) pairs
-  # can describe the same orientation; only their difference is observable at pitch = 0.
+  # can describe the same orientation; only their difference is observable at pitch = 180.
   placement: euler
 
   position_mm: [0.0, 0.0, 4000.0]
 
   # placement: euler
   yaw_deg: 0.0
-  pitch_deg: 0.0
+  # 180 hangs the sensor level, looking straight down. Pitching 180 about +Y also turns the zone
+  # grid's +X to world -X; yaw 180 puts it back if the grid orientation matters.
+  pitch_deg: 180.0
 
   # placement: look_at
   target_mm: [0.0, 0.0, 0.0]

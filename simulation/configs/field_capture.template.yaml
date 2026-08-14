@@ -1,0 +1,54 @@
+# Template for placing a real capture in the silo, for scripts/run_reading.py.
+# Same schema as scene.template.yaml; the `feed` and `metrics` sections are not read, because a
+# measured capture has no ground truth. Lengths are millimetres, angles degrees.
+#
+# Every number below describes a physical installation and must be MEASURED. None of the captures
+# in python-poc/field-tests/ recorded a mount pose (their `notes` are null), so for those logs the
+# placement is a guess and the world coordinates are only as good as that guess. Fill this in from
+# python-poc/configs/field_notes.template.yaml, which records the same quantities at capture time.
+
+name: field_capture
+
+camera:
+  # Must match the exported reading's zone grid or run_reading.py refuses to place it.
+  width: 8
+  height: 8
+  # PLACEHOLDER: the field of view implied by the ams driver's zCorrection, not a datasheet
+  # figure. Replace with the measured optics before trusting any absolute position.
+  hfov_deg: 67.38
+  vfov_deg: 53.13
+
+sensor:
+  # From the field notes' sensor_mount block:
+  #   position_mm = [offset_from_axis_mm along the lean direction, 0, height_above_floor_mm]
+  #   pitch_deg   = 180 - tilt_from_vertical_deg   (180 is straight down, 0 is straight up)
+  #   yaw_deg     = tilt_direction, CCW from +X; the direction the sensor leans
+  #   roll_deg    = roll_deg
+  placement: euler
+  position_mm: [0.0, 0.0, 7000.0]
+  yaw_deg: 0.0
+  pitch_deg: 180.0
+  roll_deg: 0.0
+
+  # Returns outside this band are discarded rather than fitted. Nothing can legitimately sit a
+  # handspan from a roof-mounted sensor, so a near gate rejects cover-glass and crosstalk returns
+  # that would otherwise fit a "feed surface" at the mount point. Set the far gate past the outlet.
+  min_range_mm: 200.0
+  max_range_mm: 10000.0
+
+silo:
+  type: profiled
+  outlet_radius_mm: 250.0
+  body_radius_mm: 3000.0
+  roof_radius_mm: 500.0
+  z_outlet_mm: 0.0
+  z_hopper_top_mm: 3000.0
+  z_cylinder_top_mm: 6000.0
+  z_roof_top_mm: 7000.0
+
+reconstruct:
+  method: linear_interp
+  # `classifier` is not read: oracle needs ground-truth surface labels, which a capture has none of.
+  wall_margin_mm: 25.0
+  # vendor_zcorrection is the model the device's own driver applies.
+  camera_model: vendor_zcorrection

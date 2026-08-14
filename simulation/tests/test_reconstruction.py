@@ -4,7 +4,7 @@ import pytest
 from tof_sim.camera import Intrinsics, look_at
 from tof_sim.geometry import ConicalPileFeed, FlatFeed, Scene, SiloProfile
 from tof_sim.metrics import evaluate
-from tof_sim.reconstruct import classify_geometric, classify_oracle, reconstruct, surface_mesh
+from tof_sim.reconstruct import check_is_contained_in_silo, classify_oracle, reconstruct, surface_mesh
 from tof_sim.sensor import IdealTofSensor
 
 SILO_RADIUS = 1500.0
@@ -111,7 +111,7 @@ def test_geometric_classifier_matches_oracle_when_feed_fills_the_view():
     feed = _flat(2000.0)
     scene, frame = _capture(feed)
     oracle = classify_oracle(frame, scene)
-    geometric = classify_geometric(
+    geometric = check_is_contained_in_silo(
         reconstruct(frame, feed_mask=frame.valid).points_world, frame.valid,
         profile=PROFILE, wall_margin=1.0,
     )
@@ -122,7 +122,7 @@ def test_geometric_classifier_rejects_wall_returns():
     feed = _flat(300.0)
     scene, frame = _capture(feed)
     points = reconstruct(frame, feed_mask=frame.valid).points_world
-    geometric = classify_geometric(points, frame.valid, profile=PROFILE, wall_margin=25.0)
+    geometric = check_is_contained_in_silo(points, frame.valid, profile=PROFILE, wall_margin=25.0)
 
     assert geometric.sum() < frame.valid.sum()
     assert np.array_equal(geometric, geometric & classify_oracle(frame, scene))

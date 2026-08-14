@@ -94,7 +94,7 @@ class Reconstruction:
     method: str
 
 
-def classify_geometric(points: np.ndarray, valid: np.ndarray, profile: SiloProfile,
+def check_is_contained_in_silo(points: np.ndarray, valid: np.ndarray, profile: SiloProfile,
                        centre=(0.0, 0.0), wall_margin: float = 0.0) -> np.ndarray:
     """Keep zones landing clear of the silo shell.
 
@@ -103,10 +103,15 @@ def classify_geometric(points: np.ndarray, valid: np.ndarray, profile: SiloProfi
     accept the sloping wall as feed.
     """
     r = np.hypot(points[..., 0] - centre[0], points[..., 1] - centre[1])
-    return valid & (r <= profile.radius_at(points[..., 2]) - wall_margin)
+    return valid & (r <= (profile.radius_at(points[..., 2]) - wall_margin))
 
 
 def classify_oracle(frame: Frame, scene: Scene) -> np.ndarray:
+    # Without the guard a measured frame's absent labels compare false against every id and the
+    # caller gets an empty mask, which reads as "nothing is feed" rather than "unanswerable".
+    if frame.surface_id is None:
+        raise ValueError("this frame carries no surface labels; oracle classification needs a "
+                         "rendered frame, use check_is_contained_in_silo on a measured one")
     feed_ids = scene.index_of_role("feed")
     return frame.valid & np.isin(frame.surface_id, feed_ids)
 

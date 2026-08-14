@@ -26,8 +26,8 @@ class Intrinsics:
 
     width: int
     height: int
-    fx: float
-    fy: float
+    fx: float # focal length measured in zone-widths
+    fy: float # focal length measured in zone-widths
     cx: float
     cy: float
 
@@ -88,11 +88,6 @@ class Intrinsics:
         return np.stack([u, v], axis=-1)
 
 
-# Orientation at yaw = pitch = roll = 0: optical axis straight down, image +X along world +X.
-# Taking nadir as the reference keeps a near-vertical installation away from any singularity.
-NADIR = np.array([[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]])
-
-
 def _rot_y(angle: float) -> np.ndarray:
     c, s = np.cos(angle), np.sin(angle)
     return np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]])
@@ -105,19 +100,21 @@ def _rot_z(angle: float) -> np.ndarray:
 
 def from_euler(position, yaw_deg: float = 0.0, pitch_deg: float = 0.0,
                roll_deg: float = 0.0) -> np.ndarray:
-    """Build ``world_T_cam`` from mounting angles relative to a nadir-pointing reference.
+    """Build ``world_T_cam`` from mounting angles against a world-aligned reference.
 
     position: sensor focus point in world coordinates.
-    yaw_deg: direction the sensor leans, measured about world +Z, CCW from +X.
-    pitch_deg: tilt of the optical axis away from straight down.
+    yaw_deg: azimuth the optical axis leans towards, about world +Z, CCW from +X.
+    pitch_deg: angle of the optical axis away from world +Z. 0 looks straight up,
+        180 straight down, so a roof-mounted sensor sits near 180.
     roll_deg: rotation about the optical axis.
 
-    The optical axis ends up at ``(sin(pitch)cos(yaw), sin(pitch)sin(yaw), -cos(pitch))``.
+    At yaw = pitch = roll = 0 the camera axes coincide with the world axes,
+    i.e. ordinary spherical coordinates.
     """
     yaw, pitch, roll = np.radians([yaw_deg, pitch_deg, roll_deg])
 
     pose = np.eye(4)
-    pose[:3, :3] = _rot_z(yaw) @ _rot_y(-pitch) @ NADIR @ _rot_z(roll)
+    pose[:3, :3] = _rot_z(yaw) @ _rot_y(pitch) @ _rot_z(roll)
     pose[:3, 3] = np.asarray(position, dtype=float)
     return pose
 

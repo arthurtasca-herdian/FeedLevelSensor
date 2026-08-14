@@ -12,18 +12,27 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tof_sim import config as config_module
 from tof_sim import viz
 from tof_sim.metrics import evaluate
-from tof_sim.reconstruct import FITTERS, classify_geometric, classify_oracle, reconstruct, surface_mesh
+from tof_sim.reconstruct import FITTERS, check_is_contained_in_silo, classify_oracle, reconstruct, surface_mesh
 
 
 def parse_args(argv=None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--config", required=True, type=Path)
-    parser.add_argument("--out", required=True, type=Path)
-    parser.add_argument("--recon", choices=sorted(FITTERS))
-    parser.add_argument("--camera-model", choices=("matched", "vendor_zcorrection"))
-    parser.add_argument("--classifier", choices=("geometric", "oracle"))
-    parser.add_argument("--grid", type=int)
-    parser.add_argument("--show", action="store_true")
+    parser = argparse.ArgumentParser(
+        description="Render a synthetic scene, reconstruct the feed surface and score it "
+                    "against ground truth.")
+    parser.add_argument("--config", required=True, type=Path,
+                        help="scene YAML; configs/scene.template.yaml documents every key")
+    parser.add_argument("--out", required=True, type=Path,
+                        help="directory to write metrics.json and the views into")
+    parser.add_argument("--recon", choices=sorted(FITTERS),
+                        help="surface fitter, overriding the config")
+    parser.add_argument("--camera-model", choices=("matched", "vendor_zcorrection"),
+                        help="intrinsics the reconstruction assumes, overriding the config")
+    parser.add_argument("--classifier", choices=("geometric", "oracle"),
+                        help="feed/wall discrimination; oracle uses ground-truth surface labels")
+    parser.add_argument("--grid", type=int,
+                        help="samples per axis for volume and residual integration")
+    parser.add_argument("--show", action="store_true",
+                        help="open an interactive window instead of rendering headless")
     return parser.parse_args(argv)
 
 
@@ -81,7 +90,7 @@ def main(argv=None) -> int:
 
         preview = unproject(np.nan_to_num(frame.distance_mm), cfg.reconstruct.intrinsics(cfg.camera),
                             frame.pose)
-        feed_mask = classify_geometric(
+        feed_mask = check_is_contained_in_silo(
             preview, frame.valid, profile=profile, wall_margin=cfg.reconstruct.wall_margin_mm,
         )
 

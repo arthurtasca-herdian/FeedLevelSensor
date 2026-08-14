@@ -42,7 +42,9 @@ class SensorConfig:
     placement: str = "euler"
     position_mm: tuple[float, float, float] = (0.0, 0.0, 4000.0)
     yaw_deg: float = 0.0
-    pitch_deg: float = 0.0
+    # Zero angles leave the camera world-aligned, which points the optical axis at the roof.
+    # A roof-mounted sensor hangs at pitch 180, so that is the default rather than 0.
+    pitch_deg: float = 180.0
     roll_deg: float = 0.0
     target_mm: tuple[float, float, float] = (0.0, 0.0, 0.0)
     min_range_mm: float = 0.0

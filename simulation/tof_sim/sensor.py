@@ -29,10 +29,12 @@ class Frame:
     pose: np.ndarray
     origin: np.ndarray
     directions: np.ndarray
-    surface_id: np.ndarray
-    incidence_deg: np.ndarray
-    hit_points: np.ndarray
-    true_distance_mm: np.ndarray
+    # Ground truth, so only a rendered frame has these. A measured one leaves them None, which
+    # makes the consumers that need them fail rather than score a reconstruction against nothing.
+    surface_id: np.ndarray | None = None
+    incidence_deg: np.ndarray | None = None
+    hit_points: np.ndarray | None = None
+    true_distance_mm: np.ndarray | None = None
 
     @property
     def shape(self) -> tuple[int, int]:
