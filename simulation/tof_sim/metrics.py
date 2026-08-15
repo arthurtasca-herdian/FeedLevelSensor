@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 
 import numpy as np
+from scipy.spatial import Delaunay
 
 from .geometry import HeightField, SiloProfile
 from .reconstruct import Reconstruction, SurfaceFit
@@ -49,12 +50,43 @@ class Metrics:
         return data
 
 
-def residual_field(feed: HeightField, fit: SurfaceFit, profile: SiloProfile, centre=(0.0, 0.0),
-                   grid: int = 512) -> ResidualField:
+def _integration_grid(profile: SiloProfile, centre=(0.0, 0.0), grid: int = 512) -> tuple:
+    """Columns every volume and residual number is summed over: xx, yy, rho, in_silo, cell_area."""
     radius = profile.body_radius
     axis = np.linspace(-radius, radius, grid)
     xx, yy = np.meshgrid(centre[0] + axis, centre[1] + axis, indexing="xy")
     rho = np.hypot(xx - centre[0], yy - centre[1])
+    return xx, yy, rho, rho <= radius, ((2.0 * radius) / (grid - 1)) ** 2
+
+
+def volume_under(surface, profile: SiloProfile, centre=(0.0, 0.0), grid: int = 512) -> float:
+    # A ``HeightField`` and a ``SurfaceFit`` both satisfy that, so ground truth and reconstruction
+    # are integrated by the same code on the same columns and quadrature error cancels between them.
+    # """
+    xx, yy, rho, in_silo, cell_area = _integration_grid(profile, centre, grid)
+    z = np.asarray(surface.height(xx, yy), dtype=float)
+    # no unit conversion, uses the same provided by input data
+    return float(np.sum(_column_heights(z, rho, profile)[in_silo]) * cell_area)
+
+
+def sampled_fraction(points: np.ndarray, profile: SiloProfile, centre=(0.0, 0.0),
+                     grid: int = 512) -> float:
+    # Every fitter extrapolates silently past its samples, so a volume alone cannot say how much of
+    # itself was measured. Measured on the same columns as ``volume_under`` so the two agree.
+    points = np.asarray(points, dtype=float)
+    if len(points) < 3:
+        return 0.0
+
+    xx, yy, _, in_silo, _ = _integration_grid(profile, centre, grid)
+    hull = Delaunay(points[:, :2])
+    covered = hull.find_simplex(np.column_stack([xx.ravel(), yy.ravel()])) >= 0
+    return float(np.count_nonzero(covered.reshape(xx.shape) & in_silo) / np.count_nonzero(in_silo))
+
+
+def residual_field(feed: HeightField, fit: SurfaceFit, profile: SiloProfile, centre=(0.0, 0.0),
+                   grid: int = 512) -> ResidualField:
+    radius = profile.body_radius
+    xx, yy, rho, _, _ = _integration_grid(profile, centre, grid)
 
     z_true = feed.height(xx, yy)
     z_recon = np.asarray(fit.height(xx, yy), dtype=float)
@@ -81,14 +113,10 @@ def evaluate(frame: Frame, reconstruction: Reconstruction, feed: HeightField,
              keep_field: bool = True) -> Metrics:
     """Volume, level and residual error of a reconstruction against the true feed surface."""
     rf = residual_field(feed, reconstruction.fit, profile=profile, centre=centre, grid=grid)
+    _, _, _, _, cell_area = _integration_grid(profile, centre, grid)
 
-    radius = profile.body_radius
-    cell_area = ((2.0 * radius) / (grid - 1)) ** 2
-    rho = np.hypot(rf.x - centre[0], rf.y - centre[1])
-    in_silo = rho <= radius
-
-    volume_true = float(np.sum(_column_heights(rf.z_true, rho, profile)[in_silo]) * cell_area)
-    volume_recon = float(np.sum(_column_heights(rf.z_recon, rho, profile)[in_silo]) * cell_area)
+    volume_true = volume_under(feed, profile, centre=centre, grid=grid)
+    volume_recon = volume_under(reconstruction.fit, profile, centre=centre, grid=grid)
     volume_error = volume_recon - volume_true
 
     inside = rf.inside
@@ -96,7 +124,7 @@ def evaluate(frame: Frame, reconstruction: Reconstruction, feed: HeightField,
     residuals = rf.residual[inside]
     residuals = residuals[np.isfinite(residuals)]
 
-    offsets = _sample_offsets(frame, reconstruction, feed)
+    offsets = _sample_offsets(reconstruction, feed)
 
     return Metrics(
         volume_true_mm3=volume_true,
@@ -117,7 +145,7 @@ def evaluate(frame: Frame, reconstruction: Reconstruction, feed: HeightField,
     )
 
 
-def _sample_offsets(frame: Frame, reconstruction: Reconstruction, feed: HeightField) -> np.ndarray:
+def _sample_offsets(reconstruction: Reconstruction, feed: HeightField) -> np.ndarray:
     """Vertical gap between each unprojected sample and the true surface below it.
 
     With matching intrinsics this collapses to the range-quantisation floor, so a large value

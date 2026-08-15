@@ -1,6 +1,7 @@
 # Template for placing a real capture in the silo, for scripts/run_reading.py.
-# Same schema as scene.template.yaml; the `feed` and `metrics` sections are not read, because a
-# measured capture has no ground truth. Lengths are millimetres, angles degrees.
+# Same schema as scene.template.yaml. The `feed` section is not read, because a measured capture
+# has no ground truth; of `metrics`, only `grid` is, as the volume integration resolution.
+# Lengths are millimetres, angles degrees.
 #
 # Every number below describes a physical installation and must be MEASURED. None of the captures
 # in python-poc/field-tests/ recorded a mount pose (their `notes` are null), so for those logs the
@@ -38,9 +39,9 @@ sensor:
 
 silo:
   type: profiled
-  outlet_radius_mm: 250.0
-  body_radius_mm: 3000.0
-  roof_radius_mm: 500.0
+  outlet_radius_mm: 200.0
+  body_radius_mm: 1500.0
+  roof_radius_mm: 300.0
   z_outlet_mm: 0.0
   z_hopper_top_mm: 3000.0
   z_cylinder_top_mm: 6000.0
@@ -52,3 +53,7 @@ reconstruct:
   wall_margin_mm: 25.0
   # vendor_zcorrection is the model the device's own driver applies.
   camera_model: vendor_zcorrection
+
+metrics:
+  # Samples per axis for the volume integral. 512 lands within ~0.1 % of the closed form.
+  grid: 512

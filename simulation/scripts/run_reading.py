@@ -13,6 +13,7 @@ from tof_sim import viz
 from tof_sim.config import SimulationConfig
 from tof_sim.camera import unproject
 from tof_sim.geometry import Scene
+from tof_sim.metrics import sampled_fraction, volume_under
 from tof_sim.reading import frame_from_reading, load_reading
 from tof_sim.reconstruct import FITTERS, check_is_contained_in_silo, reconstruct, surface_mesh
 
@@ -32,10 +33,55 @@ def parse_args(argv=None) -> argparse.Namespace:
                         help="surface fitter, overriding the config")
     parser.add_argument("--show", action="store_true",
                         help="open an interactive window instead of rendering headless")
+    parser.add_argument("--spread", action="store_true",
+                        help="also fit every other method and report the range of volumes")
     return parser.parse_args(argv)
 
 
-def _report(cfg, reading, recon, profile, heights) -> str:
+def fitter_spread(feed_points, profile, grid: int) -> tuple:
+    """Volume from every fitter over one set of points, plus the fitters that could not run.
+
+    Which surface to draw through 64 samples is an assumption, not a measurement, so the range
+    these disagree over is what the capture failed to pin down. Coverage cannot answer this: it
+    reports sampled *area*, and two captures with the same coverage can disagree here by tenfold
+    when one of them leaves the surface between its samples unconstrained.
+    """
+    volumes, failed = {}, []
+    for name, fitter in sorted(FITTERS.items()):
+        try:
+            volumes[name] = volume_under(fitter(feed_points), profile, grid=grid)
+        except (ValueError, np.linalg.LinAlgError) as exc:
+            # Fitters have different minimum sample counts, so a sparse capture can rule some out.
+            failed.append(f"{name} ({exc})")
+    return volumes, failed
+
+
+def _summary(volume, coverage, profile, heights, spread=None) -> list:
+    capacity = profile.capacity()
+    rows = [
+        ("feed volume", f"{volume / 1e9:.3f} m3"),
+        ("fill", f"{100 * volume / capacity:.2f} % of {capacity / 1e9:.3f} m3 capacity"),
+        ("feed height", f"{heights.min():.0f} .. {heights.max():.0f} mm"
+                        f"  (mean {heights.mean():.0f} mm)"),
+        # A zone grid is rectangular and a silo is not, so the corners of the cross-section are
+        # never sampled. Everything outside the hull is the fitter extrapolating.
+        ("coverage", f"{100 * coverage:.1f} % of the cross-section sampled"
+                     f"  ({100 * (1 - coverage):.1f} % extrapolated)"),
+    ]
+    if spread:
+        volumes, failed = spread
+        values = sorted(volumes.values())
+        band = (values[-1] - values[0]) / np.mean(values) if values else float("nan")
+        rows.append(("model spread", f"{values[0] / 1e9:.3f} .. {values[-1] / 1e9:.3f} m3"
+                                     f"  ({100 * band:.1f} % across {len(values)} fitters)"))
+        rows.append(("  by fitter", ", ".join(
+            f"{name} {v / 1e9:.3f}" for name, v in sorted(volumes.items(), key=lambda kv: kv[1]))))
+        if failed:
+            rows.append(("  could not fit", "; ".join(failed)))
+    return rows
+
+
+def _report(cfg, reading, recon, profile, summary) -> str:
     rows = [
         ("reading", reading.describe()),
         ("captured", reading.meta.get("host_utc", "?")),
@@ -47,8 +93,7 @@ def _report(cfg, reading, recon, profile, heights) -> str:
                   f" {int(np.isfinite(reading.distances_mm).sum())} returned)"),
         ("field of view", f"{cfg.camera.hfov_deg:.2f} x {cfg.camera.vfov_deg:.2f} deg"),
         ("method", f"{recon.method} / geometric / camera={cfg.reconstruct.camera_model}"),
-        ("feed height", f"{heights.min():.0f} .. {heights.max():.0f} mm"
-                        f"  (mean {heights.mean():.0f} mm)"),
+        *summary,
     ]
     warnings = reading.meta.get("warnings")
     if warnings:
@@ -90,14 +135,20 @@ def main(argv=None) -> int:
     out.mkdir(parents=True, exist_ok=True)
     headless = not args.show
 
+    volume = volume_under(recon.fit, profile, grid=cfg.metrics.grid)
+    coverage = sampled_fraction(recon.feed_points, profile, grid=cfg.metrics.grid)
+    spread = fitter_spread(recon.feed_points, profile, cfg.metrics.grid) if args.spread else None
+    summary = _summary(volume, coverage, profile, recon.feed_points[:, 2], spread)
+    overlay = "\n".join(f"{k}: {v}" for k, v in summary)
+
     vertices, faces = surface_mesh(recon.fit, profile=profile)
     written = {"distance_map": viz.distance_map_view(frame, out / "distance_map.png")}
     written |= {f"reading_{k}": v for k, v in viz.render(
         viz.reading_view(scene, frame, recon.points_world, (vertices, faces),
-                         feed_mask=recon.feed_mask, headless=headless),
-        out, "reading", headless).items()}
+                         feed_mask=recon.feed_mask, headless=headless, overlay=overlay),
+        out, "reading", headless, overlay=overlay).items()}
 
-    print(_report(cfg, reading, recon, profile, recon.feed_points[:, 2]))
+    print(_report(cfg, reading, recon, profile, summary))
     print("\n  wrote:")
     for name, path in written.items():
         print(f"    {name:16s} {path}")

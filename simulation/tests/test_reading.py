@@ -141,3 +141,55 @@ def test_cli_writes_the_reading_views(tmp_path):
         assert (out / name).exists(), name
     # A capture has no ground truth, so scoring it would be inventing a reference.
     assert not (out / "metrics.json").exists()
+
+
+def test_all_fitters_agree_on_a_well_sampled_flat_surface():
+    from scripts.run_reading import fitter_spread
+
+    frame = frame_from_reading(_reading(_radial_for_flat_surface(2000.0)), INTRINSICS, POSE)
+    recon = reconstruct(frame, method="linear_interp")
+    volumes, failed = fitter_spread(recon.feed_points, PROFILE, grid=256)
+
+    assert not failed
+    assert set(volumes) == {"linear_interp", "mean_level", "plane_fit", "rbf"}
+    values = sorted(volumes.values())
+    # Where the samples pin the surface down, the choice of fitter stops mattering.
+    assert (values[-1] - values[0]) / np.mean(values) < 0.01
+
+
+def test_an_unconstrained_surface_makes_the_fitters_disagree():
+    from scripts.run_reading import fitter_spread
+
+    # A ridge sampled only along its crest. Sparse sampling of a *flat* surface would not do:
+    # every fitter reproduces a plane from any subset of it, so the spread only opens up where
+    # the surface has structure the samples do not span.
+    x = np.tile(np.linspace(-1500.0, 1500.0, 24), 2)
+    y = np.repeat([-100.0, 100.0], 24)
+    z = 2000.0 + 1800.0 * np.exp(-((x / 500.0) ** 2))
+    volumes, failed = fitter_spread(np.column_stack([x, y, z]), PROFILE, grid=256)
+
+    assert not failed
+    values = sorted(volumes.values())
+    assert (values[-1] - values[0]) / np.mean(values) > 0.05
+
+
+def test_a_fitter_that_cannot_run_is_named_rather_than_dropped():
+    from scripts.run_reading import fitter_spread
+
+    points = np.array([[0.0, 0.0, 2000.0], [500.0, 0.0, 2000.0], [0.0, 500.0, 2000.0]])
+    volumes, failed = fitter_spread(points, PROFILE, grid=128)
+
+    assert "linear_interp" in " ".join(failed)
+    assert "mean_level" in volumes
+
+
+def test_cli_accepts_the_spread_flag(tmp_path):
+    from scripts.run_reading import main
+
+    reading = _write_npz(tmp_path / "r.npz", _radial_for_flat_surface(2000.0))
+    out = tmp_path / "run"
+    assert main([
+        "--config", str(CONFIGS / "field_capture.template.yaml"),
+        "--reading", str(reading), "--out", str(out), "--spread",
+    ]) == 0
+    assert (out / "reading.png").exists()

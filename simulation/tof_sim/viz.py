@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from html import escape
 from pathlib import Path
 
 import numpy as np
@@ -159,7 +160,8 @@ def residual_view(scene: Scene, recon_surface, residual_mm: np.ndarray, frame: F
 
 def reading_view(scene: Scene, frame: Frame, points: np.ndarray, feed_surface,
                  feed_mask: np.ndarray | None = None, headless: bool = True,
-                 show_rays: bool = True, show_frustum: bool = True) -> pv.Plotter:
+                 show_rays: bool = True, show_frustum: bool = True,
+                 overlay: str | None = None) -> pv.Plotter:
     """A measured grid placed in the silo: the points it returned and the surface fitted to them.
 
     ``points`` are the unprojected world positions rather than anything read off the frame, because
@@ -196,6 +198,9 @@ def reading_view(scene: Scene, frame: Frame, points: np.ndarray, feed_surface,
         [["fitted feed surface", SERIES_RECON], ["excluded from fit", INK_MUTED]],
         bcolor=SURFACE, border=True, face="rectangle", size=(0.24, 0.08), loc="upper left",
     )
+    if overlay:
+        # Upper left is the legend and the bottom strip is the scalar bar, so the figures go right.
+        plotter.add_text(overlay, position="upper_right", font_size=9, color=INK_SECONDARY)
     plotter.add_axes(color=INK_SECONDARY)
     plotter.camera_position = "xz"
     plotter.camera.azimuth = 35
@@ -253,7 +258,25 @@ def distance_map_view(frame: Frame, out_path: Path | str, max_labelled: int = 16
     return out_path
 
 
-def render(plotter: pv.Plotter, out_dir: Path | str, stem: str, headless: bool = True) -> dict[str, Path]:
+def _inject_html_overlay(path: Path, text: str) -> None:
+    # A VTK text actor does not survive export to vtk.js, so the figures a viewer needs would be
+    # in the PNG and missing from the interactive view. Re-add them as ordinary markup.
+    lines = "<br>".join(escape(line) for line in text.splitlines())
+    block = (
+        '<div style="position:fixed;top:12px;right:16px;z-index:10;text-align:right;'
+        f'font:12px/1.5 system-ui,sans-serif;color:{INK_SECONDARY};pointer-events:none">'
+        f"{lines}</div>"
+    )
+    html = path.read_text(encoding="utf-8")
+    marker = "</body>"
+    path.write_text(
+        html.replace(marker, block + marker, 1) if marker in html else html + block,
+        encoding="utf-8",
+    )
+
+
+def render(plotter: pv.Plotter, out_dir: Path | str, stem: str, headless: bool = True,
+           overlay: str | None = None) -> dict[str, Path]:
     """Write a PNG and a standalone interactive HTML, then show the window when not headless."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -261,6 +284,8 @@ def render(plotter: pv.Plotter, out_dir: Path | str, stem: str, headless: bool =
 
     html_path = out_dir / f"{stem}.html"
     plotter.export_html(html_path)
+    if overlay:
+        _inject_html_overlay(html_path, overlay)
     written["html"] = html_path
 
     png_path = out_dir / f"{stem}.png"

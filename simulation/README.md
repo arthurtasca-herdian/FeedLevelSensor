@@ -54,6 +54,18 @@ uv run python scripts/run_reading.py --config configs/<installation>.yaml \
     --reading reading.npz --out out/field
 ```
 
+It reports feed volume, fill, height and **coverage** — the share of the cross-section the zone grid
+spanned. A zone grid is rectangular and a silo is not, so the corners are never sampled and the
+fitter extrapolates there; coverage says how much of the volume was inferred rather than measured.
+`metrics.grid` sets the integration resolution. The same figures are overlaid on the rendered views.
+
+`--spread` adds **model spread**: the same points fitted by all four methods, reported as a range.
+Which surface to draw through 64 samples is an assumption, not a measurement, so the range they
+disagree over is what the capture failed to pin down. It answers a question coverage cannot — two
+captures can span the same *area* and still differ tenfold in how well that area constrains the
+surface. On the field captures, a full silo spreads 2 % across the four fitters and a near-empty
+one 24 %, at 72 % and 71 % coverage respectively.
+
 The sensor placement and silo dimensions come from the config and must be **measured**. None of the
 captures in `python-poc/field-tests/` recorded a mount pose, so for those logs the placement is a
 guess and the world coordinates are only as good as that guess.
